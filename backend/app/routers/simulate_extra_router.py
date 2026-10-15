@@ -1,0 +1,6 @@
+from fastapi import APIRouter
+
+router = APIRouter(
+    prefix="/simulate",
+    tags=["Extra Simulations"],
+)
