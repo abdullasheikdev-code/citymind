@@ -12,6 +12,7 @@ import {
 } from "recharts";
 
 import type { RouteDetail } from "@/lib/api";
+import type { TooltipProps } from "recharts";
 
 interface RouteDelayChartProps {
   data: RouteDetail[];
@@ -22,6 +23,14 @@ interface ChartData {
   fullZone: string;
   delay: number;
 }
+
+type ChartTooltipFormatter = NonNullable<
+  TooltipProps<number, string>["formatter"]
+>;
+
+type ChartLabelFormatter = NonNullable<
+  TooltipProps<number, string>["labelFormatter"]
+>;
 
 export function RouteDelayChart({ data }: RouteDelayChartProps) {
   const chartData: ChartData[] = data
@@ -57,13 +66,23 @@ export function RouteDelayChart({ data }: RouteDelayChartProps) {
   const minDelay = Math.min(0, ...chartData.map((item) => item.delay));
   const maxDelay = Math.max(0, ...chartData.map((item) => item.delay));
 
-  // Give an all-zero chart a visible scale without inventing delay values.
+  // Preserve actual values while ensuring an all-zero chart remains visible.
   const padding = allZero
     ? 1
     : Math.max((maxDelay - minDelay) * 0.15, 0.5);
 
   const yMin = minDelay < 0 ? minDelay - padding : 0;
   const yMax = maxDelay > 0 ? maxDelay + padding : allZero ? 1 : 0.5;
+
+  const formatLabel: ChartLabelFormatter = (_label, payload) => {
+    const entry = payload?.[0]?.payload as ChartData | undefined;
+    return entry?.fullZone ?? "";
+  };
+
+  const formatValue: ChartTooltipFormatter = (value) => [
+    `${Number(value).toFixed(2)}%`,
+    "Route delay",
+  ];
 
   return (
     <section className="rounded-xl border border-white/10 bg-white/[0.03] p-5">
@@ -94,8 +113,8 @@ export function RouteDelayChart({ data }: RouteDelayChartProps) {
             No route-delay increase reported
           </p>
           <p className="mt-1 text-xs leading-5 text-slate-400">
-            All available zone values are 0%. The chart below preserves the
-            actual data; no artificial delay values have been added.
+            All available zone values are 0%. The chart preserves the actual
+            data; no artificial delay values have been added.
           </p>
         </div>
       )}
@@ -144,13 +163,8 @@ export function RouteDelayChart({ data }: RouteDelayChartProps) {
                 color: "#e2e8f0",
                 fontSize: 12,
               }}
-              labelFormatter={(_, payload) =>
-                payload?.[0]?.payload?.fullZone ?? ""
-              }
-              formatter={(value) => [
-                `${Number(value).toFixed(2)}%`,
-                "Route delay",
-              ]}
+              labelFormatter={formatLabel}
+              formatter={formatValue}
             />
 
             <Bar
