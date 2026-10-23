@@ -19,10 +19,13 @@ app = FastAPI(
 )
 
 # CORS configuration
-# Allows the local CityMind frontend to communicate with the backend.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        # Deployed Vercel frontend
+        "https://citymind-g88k.vercel.app",
+
+        # Local development
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:3001",
