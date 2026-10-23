@@ -15,14 +15,19 @@ router = APIRouter(
     tags=["knowledge-base"],
 )
 
+# Local development uses localhost.
+# Render can override this with https://ollama.com.
 OLLAMA_URL = os.getenv(
     "OLLAMA_URL",
     "http://localhost:11434",
-)
+).rstrip("/")
+
 OLLAMA_MODEL = os.getenv(
     "OLLAMA_MODEL",
     "llama3.2:latest",
 )
+
+OLLAMA_API_KEY = os.getenv("OLLAMA_API_KEY", "").strip()
 
 
 def normalize_content(content: str) -> str:
@@ -31,7 +36,7 @@ def normalize_content(content: str) -> str:
 
 
 def generate_answer(query: str, sources: list) -> str:
-    """Generate an answer using unique retrieved PDF passages."""
+    """Generate an answer using local Ollama or Ollama Cloud."""
 
     if not sources:
         return (
@@ -72,9 +77,27 @@ USER QUESTION:
 ANSWER:
 """
 
+    # Require authentication when using Ollama Cloud.
+    if "ollama.com" in OLLAMA_URL and not OLLAMA_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "OLLAMA_API_KEY is missing from the backend "
+                "environment configuration."
+            ),
+        )
+
+    headers = {
+        "Content-Type": "application/json",
+    }
+
+    if OLLAMA_API_KEY:
+        headers["Authorization"] = f"Bearer {OLLAMA_API_KEY}"
+
     try:
         response = requests.post(
-            f"{OLLAMA_URL.rstrip('/')}/api/generate",
+            f"{OLLAMA_URL}/api/generate",
+            headers=headers,
             json={
                 "model": OLLAMA_MODEL,
                 "prompt": prompt,
@@ -82,22 +105,58 @@ ANSWER:
             },
             timeout=120,
         )
+
         response.raise_for_status()
 
         data = response.json()
         answer = data.get("response", "").strip()
 
         if not answer:
-            raise RuntimeError("Ollama returned an empty answer.")
+            raise RuntimeError(
+                "Ollama returned an empty answer."
+            )
 
         return answer
+
+    except requests.HTTPError as exc:
+        status = (
+            exc.response.status_code
+            if exc.response is not None
+            else 0
+        )
+
+        if status in (401, 403):
+            detail = (
+                "Ollama authentication failed. Check the "
+                "OLLAMA_API_KEY environment variable."
+            )
+            error_status = 502
+
+        elif status == 429:
+            detail = (
+                "Ollama rate or usage limit reached. Check your "
+                "account's limits and try again later."
+            )
+            error_status = 503
+
+        else:
+            detail = (
+                f"Ollama returned HTTP {status}. Check the model "
+                "name, API endpoint, and backend logs."
+            )
+            error_status = 502
+
+        raise HTTPException(
+            status_code=error_status,
+            detail=detail,
+        ) from exc
 
     except requests.RequestException as exc:
         raise HTTPException(
             status_code=503,
             detail=(
-                "Could not connect to Ollama. Make sure Ollama is "
-                f"running and model '{OLLAMA_MODEL}' is available."
+                "Could not connect to Ollama. Check OLLAMA_URL "
+                "and the backend's network connectivity."
             ),
         ) from exc
 
@@ -112,7 +171,9 @@ ANSWER:
 def upload_document(
     file: UploadFile = File(...),
     conn=Depends(get_db),
-    user: dict = Depends(require_permission("edit_infrastructure")),
+    user: dict = Depends(
+        require_permission("edit_infrastructure")
+    ),
 ):
     """Extract PDF text and persist its chunks in SQLite."""
 
@@ -151,7 +212,10 @@ def upload_document(
         except Exception as exc:
             raise HTTPException(
                 status_code=400,
-                detail="Could not read this PDF. Check that it is valid.",
+                detail=(
+                    "Could not read this PDF. "
+                    "Check that it is valid."
+                ),
             ) from exc
 
         if not any(
@@ -205,7 +269,10 @@ def upload_document(
         if chunk_count == 0:
             raise HTTPException(
                 status_code=400,
-                detail="No usable text chunks were extracted from the PDF.",
+                detail=(
+                    "No usable text chunks were extracted "
+                    "from the PDF."
+                ),
             )
 
         conn.commit()
@@ -226,7 +293,10 @@ def upload_document(
 
         raise HTTPException(
             status_code=500,
-            detail="Document upload failed. Check the backend logs.",
+            detail=(
+                "Document upload failed. "
+                "Check the backend logs."
+            ),
         ) from exc
 
     finally:
@@ -265,15 +335,11 @@ def ask(
     unique_chunk_count = 0
 
     # Index only the first occurrence of each normalized passage.
-    # This handles duplicate chunks from repeated PDF uploads.
     for row in rows:
         content = row["content"] or ""
         normalized = normalize_content(content)
 
-        if not normalized:
-            continue
-
-        if normalized in seen_content:
+        if not normalized or normalized in seen_content:
             continue
 
         seen_content.add(normalized)
@@ -298,12 +364,14 @@ def ask(
         top_k=payload.top_k,
     )
 
-    # Extra safeguard: never send identical passages to the model.
+    # Never send duplicate passages to the model.
     unique_results = []
     seen_results = set()
 
     for source in retrieved:
-        normalized = normalize_content(source.get("content", ""))
+        normalized = normalize_content(
+            source.get("content", "")
+        )
 
         if not normalized or normalized in seen_results:
             continue
@@ -336,7 +404,8 @@ def ask(
         "query": payload.query,
         "answer": answer,
         "answer_grounding": (
-            "Answer generated using retrieved uploaded-document passages."
+            "Answer generated using retrieved "
+            "uploaded-document passages."
         ),
         "sources": [
             {
