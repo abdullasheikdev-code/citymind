@@ -34,12 +34,7 @@ function SimulationContent() {
 
     try {
       const response = await simulateRoadClosure(parsedRoadId);
-
-      console.log(
-        "SIMULATION RESPONSE:",
-        JSON.stringify(response, null, 2)
-      );
-
+      console.log("SIMULATION RESPONSE:", JSON.stringify(response, null, 2));
       setResult(response);
     } catch (err: unknown) {
       setError(
@@ -58,42 +53,42 @@ function SimulationContent() {
     ? [
         {
           label: "Hospital delay — affected zones",
-          value: metrics.avg_hospital_route_delay_pct,
+          value: metrics?.avg_hospital_route_delay_pct,
           suffix: "%",
         },
         {
           label: "Hospital delay — all zones",
-          value: metrics.avg_hospital_route_delay_pct_all_zones,
+          value: metrics?.avg_hospital_route_delay_pct_all_zones,
           suffix: "%",
         },
         {
           label: "School delay — affected zones",
-          value: metrics.avg_school_route_delay_pct,
+          value: metrics?.avg_school_route_delay_pct,
           suffix: "%",
         },
         {
           label: "School delay — all zones",
-          value: metrics.avg_school_route_delay_pct_all_zones,
+          value: metrics?.avg_school_route_delay_pct_all_zones,
           suffix: "%",
         },
         {
           label: "Zones with increased hospital travel",
-          value: metrics.zones_with_increased_hospital_travel,
+          value: metrics?.zones_with_increased_hospital_travel,
           suffix: "",
         },
         {
           label: "Zones with increased school travel",
-          value: metrics.zones_with_increased_school_travel,
+          value: metrics?.zones_with_increased_school_travel,
           suffix: "",
         },
         {
           label: "Maximum ambulance delay",
-          value: metrics.max_ambulance_delay_min,
+          value: metrics?.max_ambulance_delay_min,
           suffix: " min",
         },
         {
           label: "Zones cut off entirely",
-          value: metrics.zones_cut_off_entirely,
+          value: metrics?.zones_cut_off_entirely,
           suffix: "",
         },
       ]
@@ -223,8 +218,8 @@ function SimulationContent() {
                   })}
                 </div>
 
-                {(metrics.avg_hospital_route_delay_pct_all_zones == null ||
-                  metrics.avg_school_route_delay_pct_all_zones == null) && (
+                {(metrics?.avg_hospital_route_delay_pct_all_zones == null ||
+                  metrics?.avg_school_route_delay_pct_all_zones == null) && (
                   <p className="mt-3 text-xs leading-5 text-amber-300">
                     The all-zone averages are not present in this API response.
                     Apply the backend metric update and rerun the simulation
@@ -237,23 +232,18 @@ function SimulationContent() {
                 <h2 className="mb-3 text-base font-semibold text-slate-200">
                   AI Explanation
                 </h2>
-
                 <p className="whitespace-pre-line text-sm leading-7 text-slate-300">
                   {result.explanation || "No explanation was returned."}
                 </p>
               </section>
 
               {result.result.hospital_route_detail && (
-                <RouteDelayChart
-                  data={result.result.hospital_route_detail}
-                />
+                <RouteDelayChart data={result.result.hospital_route_detail} />
               )}
 
               {result.result.school_route_detail &&
                 result.result.school_route_detail.length > 0 && (
-                  <RouteDelayChart
-                    data={result.result.school_route_detail}
-                  />
+                  <RouteDelayChart data={result.result.school_route_detail} />
                 )}
 
               {result.result.recommendation && (
@@ -261,7 +251,6 @@ function SimulationContent() {
                   <h2 className="mb-3 text-base font-semibold text-emerald-300">
                     Recommended Detour
                   </h2>
-
                   <p className="text-sm leading-7 text-slate-300">
                     {result.result.recommendation.text}
                   </p>
@@ -271,7 +260,6 @@ function SimulationContent() {
                       <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
                         Suggested roads
                       </p>
-
                       <div className="flex flex-wrap gap-2">
                         {result.result.recommendation.detour_roads.map(
                           (road, index) => (
@@ -293,11 +281,9 @@ function SimulationContent() {
                 <h2 className="mb-2 text-base font-semibold text-slate-200">
                   Calculation Method
                 </h2>
-
                 <p className="text-sm leading-7 text-slate-400">
                   {result.result.basis.method}
                 </p>
-
                 <p className="mt-3 text-xs leading-5 text-slate-500">
                   The simulation recalculates shortest routes after excluding
                   the selected road. Results depend on the roads, facilities,
