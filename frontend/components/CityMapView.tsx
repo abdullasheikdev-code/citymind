@@ -36,8 +36,6 @@ interface Road {
   node_a_lon: number;
   node_b_lat: number;
   node_b_lon: number;
-
-  // Coordinates returned by the backend as [latitude, longitude].
   geometry?: Coordinate[];
 }
 
@@ -70,8 +68,8 @@ function isValidCoordinate(lat: unknown, lon: unknown): boolean {
 }
 
 /**
- * Return the detailed OSM geometry when it contains at least
- * two valid coordinates. Otherwise, use the road endpoints.
+ * Use detailed road geometry when available.
+ * Otherwise, fall back to valid road endpoints.
  */
 function getRoadPositions(road: Road): Coordinate[] {
   if (Array.isArray(road.geometry)) {
@@ -152,11 +150,10 @@ function MapControls() {
     const bounds = L.latLngBounds([]);
 
     map.eachLayer((layer) => {
-      if (
-        layer instanceof L.Polyline ||
-        layer instanceof L.CircleMarker
-      ) {
+      if (layer instanceof L.Polyline) {
         bounds.extend(layer.getBounds());
+      } else if (layer instanceof L.CircleMarker) {
+        bounds.extend(layer.getLatLng());
       }
     });
 
@@ -319,18 +316,14 @@ export default function CityMapView({
                 <div className="min-w-[160px] text-sm">
                   <strong>{road.name || `Road ${road.id}`}</strong>
 
-                  <p>
-                    Class: {road.road_class || "Not specified"}
-                  </p>
+                  <p>Class: {road.road_class || "Not specified"}</p>
 
                   {road.speed_kmph != null && (
                     <p>Speed: {road.speed_kmph} km/h</p>
                   )}
 
                   {road.capacity_vph != null && (
-                    <p>
-                      Capacity: {road.capacity_vph} vehicles/hour
-                    </p>
+                    <p>Capacity: {road.capacity_vph} vehicles/hour</p>
                   )}
 
                   <p className="mt-2 text-xs">
